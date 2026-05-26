@@ -18,7 +18,8 @@ namespace SearchAPI.Logic;
         /// contained in the document.
         /// Ordered decending by hits
         /// </summary>
-        List<(int docId, int hits)> GetDocuments(List<int> wordIds);
+        List<(int docId, int hits)> GetDocuments(List<int> wordIds, int maxAmount, int offset);
+        int CountDocuments(List<int> wordIds);
 
         /// <summary>
         /// Return all words, contained in [wordIds], but not
@@ -38,5 +39,6 @@ namespace SearchAPI.Logic;
         /// </summary>
         /// <returns>all words - the key is the word itself, and value is the id</returns>
         Dictionary<string, int> GetAllWords();
+        string? GetFileContent(int docId);
         
     }

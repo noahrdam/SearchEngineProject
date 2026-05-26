@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
@@ -8,30 +9,32 @@ namespace Shared;
 
 public class SearchLogicProxy
 {
-<<<<<<< HEAD
-    private string serverEndPoint = "https://localhost:7137/api";
-=======
-    private string serverEndPoint = "http://localhost:5203/api";
->>>>>>> 952c038598b85b4b3737a8503e85da382baa041d
-
+    private string serverEndPoint;
     private HttpClient mHttp;
 
-    public SearchLogicProxy()
+    public SearchLogicProxy(string baseUrl = "http://localhost:5203", HttpClient? http = null)
     {
-        mHttp = new HttpClient();
+        serverEndPoint = baseUrl.TrimEnd('/') + "/api";
+        mHttp = http ?? new HttpClient();
     }
 
-    public async Task<SearchResult> Search(string[] query, int maxAmount)
+    public async Task<SearchResult> Search(string[] query, int maxAmount, string[]? termNets = null, int offset = 0)
     {
-        var completeUrl = $"{serverEndPoint}/search/{String.Join(",", query)}/{maxAmount}";
-        return await mHttp.GetFromJsonAsync<SearchResult>(completeUrl);
+        var q = String.Join(",", query);
+        var url = $"{serverEndPoint}/search/{q}/{maxAmount}/{offset}";
+        if (termNets != null && termNets.Length > 0)
+            url += $"/{String.Join(",", termNets)}";
+        return await mHttp.GetFromJsonAsync<SearchResult>(url);
     }
 
-    public async Task<string> GetFileContent(string url)
+    public async Task<List<string>> GetTermNets()
     {
-        var encodedurl = Uri.EscapeDataString(url);
-        var completeUrl = $"{serverEndPoint}/file/get?path={encodedurl}";
-        var fileContent = await mHttp.GetStringAsync(completeUrl);
-        return fileContent;
+        try { return await mHttp.GetFromJsonAsync<List<string>>($"{serverEndPoint}/termnets") ?? new(); }
+        catch { return new(); }
+    }
+
+    public async Task<string> GetFileContent(int docId)
+    {
+        return await mHttp.GetStringAsync($"{serverEndPoint}/getfile?docId={docId}");
     }
 }

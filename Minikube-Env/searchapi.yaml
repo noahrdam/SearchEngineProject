@@ -1,0 +1,118 @@
+#########################################################
+# searchapi1
+#########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searchapi1
+spec:
+  selector:
+    matchLabels:
+      app: searchapi1
+  template:
+    metadata:
+      labels:
+        app: searchapi1
+    spec:
+      containers:
+        - name: searchapi
+          image: searchapi:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_DATABASE
+              value: "Server=postgres1;Port=5432;User Id=postgres;Password=1234;Database=searchlarge"
+            - name: POSTGRES_DATABASE_2
+              value: "Server=postgres2;Port=5432;User Id=postgres;Password=1234;Database=searchlarge"
+            - name: TERMNET_URL
+              value: "http://termnet:8080"
+            - name: REDIS_URL
+              value: "redis:6379"
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: searchapi1
+  labels:
+    app: searchapi1
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+spec:
+  selector:
+    app: searchapi1
+  ports:
+    - name: http
+      port: 8080
+
+---
+#########################################################
+# searchapi2
+#########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searchapi2
+spec:
+  selector:
+    matchLabels:
+      app: searchapi2
+  template:
+    metadata:
+      labels:
+        app: searchapi2
+    spec:
+      containers:
+        - name: searchapi
+          image: searchapi:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_DATABASE
+              value: "Server=postgres1;Port=5432;User Id=postgres;Password=1234;Database=searchlarge"
+            - name: POSTGRES_DATABASE_2
+              value: "Server=postgres2;Port=5432;User Id=postgres;Password=1234;Database=searchlarge"
+            - name: TERMNET_URL
+              value: "http://termnet:8080"
+            - name: REDIS_URL
+              value: "redis:6379"
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: searchapi2
+  labels:
+    app: searchapi2
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+spec:
+  selector:
+    app: searchapi2
+  ports:
+    - name: http
+      port: 8080
+
+---
+#########################################################
+# Prometheus ServiceMonitor
+#########################################################
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: searchapi-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app: searchapi1
+  endpoints:
+    - interval: 15s
+      port: http

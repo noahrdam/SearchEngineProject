@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: termnet
+spec:
+  selector:
+    matchLabels:
+      app: termnet
+  template:
+    metadata:
+      labels:
+        app: termnet
+    spec:
+      containers:
+        - name: termnet
+          image: termnet:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TERMNET_DATABASE
+              value: "Server=termnetdb;Port=5432;User Id=postgres;Password=1234;Database=termnetdb"
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: termnet
+spec:
+  selector:
+    app: termnet
+  ports:
+    - port: 8080

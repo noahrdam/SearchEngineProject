@@ -1,6 +1,69 @@
 version: '3.8'
 
 services:
+  postgres1:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: "1234"
+      POSTGRES_DB: searchlarge
+    volumes:
+      - pg1data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres2:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: "1234"
+      POSTGRES_DB: searchlarge
+    volumes:
+      - pg2data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  termnetdb:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: "1234"
+      POSTGRES_DB: termnetdb
+    volumes:
+      - termnetdata:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  termnet:
+    image: termnet:latest
+    build:
+      context: .
+      dockerfile: TermNet/Dockerfile
+    environment:
+      - TERMNET_DATABASE=Server=termnetdb;Port=5432;User Id=postgres;Password=1234;Database=termnetdb
+    depends_on:
+      termnetdb:
+        condition: service_healthy
+    expose:
+      - "8080"
+
+  redis:
+    image: redis:7-alpine
+    expose:
+      - "6379"
+
   searchapi1:
     image: searchapi:latest
     build:
@@ -9,20 +72,43 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - SQLITE_DATABASE=/data/mails.db
-    volumes:
-      - "C:\\Users\\marcu\\Mails.db:/data/mails.db"
+      - POSTGRES_DATABASE=Server=postgres1;Port=5432;User Id=postgres;Password=1234;Database=searchlarge
+      - POSTGRES_DATABASE_2=Server=postgres2;Port=5432;User Id=postgres;Password=1234;Database=searchlarge
+      - TERMNET_URL=http://termnet:8080
+      - REDIS_URL=redis:6379
+    depends_on:
+      postgres1:
+        condition: service_healthy
+      postgres2:
+        condition: service_healthy
+      termnet:
+        condition: service_started
+      redis:
+        condition: service_started
     expose:
       - "8080"
 
   searchapi2:
     image: searchapi:latest
+    build:
+      context: .
+      dockerfile: SearchAPI/Dockerfile
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - SQLITE_DATABASE=/data/mails.db
-    volumes:
-      - "C:\\Users\\marcu\\Mails.db.part2.db:/data/mails.db"
+      - POSTGRES_DATABASE=Server=postgres1;Port=5432;User Id=postgres;Password=1234;Database=searchlarge
+      - POSTGRES_DATABASE_2=Server=postgres2;Port=5432;User Id=postgres;Password=1234;Database=searchlarge
+      - TERMNET_URL=http://termnet:8080
+      - REDIS_URL=redis:6379
+    depends_on:
+      postgres1:
+        condition: service_healthy
+      postgres2:
+        condition: service_healthy
+      termnet:
+        condition: service_started
+      redis:
+        condition: service_started
     expose:
       - "8080"
 
@@ -49,3 +135,7 @@ services:
     ports:
       - "5000:80"
 
+volumes:
+  pg1data:
+  pg2data:
+  termnetdata:

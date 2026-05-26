@@ -1,0 +1,104 @@
+Her er den komplette guide:
+
+VIGTIG INFO:
+- Vælg ENTEN Docker Compose ELLER Kubernetes - du skal ikke køre begge!
+- Docker Compose: Simpel setup med én database (postgres1). Hurtig til lokalt udvikling.
+- Kubernetes: Productionlignende setup med to databaser (sharding). Data distribueres automatisk af indexeren.
+- Indexeren køres KUN én gang i dit valgte setup (det er ikke nødvendigt at køre den igen).
+
+Forudsætninger (installer én gang)
+Docker Desktop
+.NET 10 SDK
+Minikube
+kubectl
+Helm
+Docker Compose
+
+======================================
+SETUP 1: DOCKER COMPOSE (simpel - anbefalet)
+======================================
+
+1. Start Docker Desktop
+
+2. Start alle services:
+
+
+docker compose up --build
+3. Indeksér data — kun første gang (ny terminal):
+
+
+cd indexer
+dotnet run
+Vent til færdigt. Indexeren kører med én database (postgres1).
+
+4. Åbn: http://localhost:5000
+
+Næste gang: bare docker compose up
+
+======================================
+SETUP 2: KUBERNETES + MONITORING (avanceret)
+======================================
+1. Start Docker Desktop
+
+2. Start Minikube:
+
+
+minikube start
+3. Byg images ind i Minikube:
+
+
+& minikube -p minikube docker-env --shell powershell | Invoke-Expression
+docker build -t searchapi:latest -f SearchAPI/Dockerfile .
+docker build -t loadbalancer:latest -f LoadBalancer/Dockerfile .
+docker build -t termnet:latest -f TermNet/Dockerfile .
+docker build -t websearch:latest -f WebSearch/Dockerfile .
+4. Deploy til Kubernetes:
+
+
+kubectl apply -f Minikube-Env/
+5. Installer monitoring (kun første gang):
+
+
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace -f Minikube-Env/helm-values/prometheus-values.yaml
+
+helm upgrade --install loki grafana/loki-stack --namespace monitoring -f Minikube-Env/helm-values/loki-values.yaml
+6. Indeksér data — kun første gang (3 nye terminaler):
+
+
+Terminal 1:
+kubectl port-forward svc/postgres1 5433:5432
+
+Terminal 2:
+kubectl port-forward svc/postgres2 5434:5432
+
+Terminal 3:
+$env:POSTGRES_DATABASE = "Server=127.0.0.1;Port=5433;User Id=postgres;Password=1234;Database=searchlarge"
+$env:POSTGRES_DATABASE_2 = "Server=127.0.0.1;Port=5434;User Id=postgres;Password=1234;Database=searchlarge"
+cd indexer
+dotnet run
+Vælg 2 når det spørger. Indexeren distribuerer data automatisk på tværs af begge databaser.
+Luk bagefter de 3 port-forward terminaler.
+
+7. Åbn appen (ny terminal):
+
+
+kubectl port-forward svc/websearch 5000:80
+→ http://localhost:5000
+
+8. Åbn Grafana (ny terminal):
+
+
+minikube service loki-grafana -n monitoring
+Næste gang (Kubernetes): Bare start Minikube og deploy igen
+
+
+minikube start
+kubectl apply -f Minikube-Env/
+kubectl port-forward svc/websearch 5000:80
+
+Hvis du vil se Grafana:
+minikube service loki-grafana -n monitoring

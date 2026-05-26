@@ -9,9 +9,11 @@ public class DatabasePostgres : IDatabase
 {
     private readonly NpgsqlConnection _connection;
 
-    public DatabasePostgres()
+    public DatabasePostgres() : this(Paths.POSTGRES_DATABASE) { }
+
+    public DatabasePostgres(string connectionString)
     {
-        var csb = new NpgsqlConnectionStringBuilder(Paths.POSTGRES_DATABASE);
+        var csb = new NpgsqlConnectionStringBuilder(connectionString);
         // ensure port/host are parsed correctly
         if (string.IsNullOrEmpty(csb.Host)) csb.Host = "127.0.0.1";
         if (csb.Port == 0) csb.Port = 5432;
@@ -30,13 +32,10 @@ public class DatabasePostgres : IDatabase
         }
 
         Execute("DROP TABLE IF EXISTS Occ");
-
         Execute("DROP TABLE IF EXISTS document");
-        Execute("CREATE TABLE document(id INTEGER PRIMARY KEY, url TEXT, idxTime TIMESTAMP, creationTime TIMESTAMP)");
-
+        Execute("CREATE TABLE document(id INTEGER PRIMARY KEY, url TEXT, idxTime TIMESTAMP, creationTime TIMESTAMP, content TEXT)");
         Execute("DROP TABLE IF EXISTS word");
         Execute("CREATE TABLE word(id INTEGER PRIMARY KEY, name TEXT)");
-
         Execute("CREATE TABLE Occ(wordId INTEGER, docId INTEGER, "
                 + "FOREIGN KEY (wordId) REFERENCES word(id), "
                 + "FOREIGN KEY (docId) REFERENCES document(id))");
@@ -52,98 +51,49 @@ public class DatabasePostgres : IDatabase
 
     public void InsertAllWords(Dictionary<string, int> res)
     {
-        using (var transaction = _connection.BeginTransaction())
+        if (res.Count == 0) return;
+        using var writer = _connection.BeginBinaryImport("COPY word (id, name) FROM STDIN (FORMAT BINARY)");
+        foreach (var p in res)
         {
-            var command = _connection.CreateCommand();
-            command.CommandText =
-                @"INSERT INTO word(id, name) VALUES(@id,@name)";
-
-            var paramName = command.CreateParameter();
-            paramName.ParameterName = "name";
-            command.Parameters.Add(paramName);
-
-            var paramId = command.CreateParameter();
-            paramId.ParameterName = "id";
-            command.Parameters.Add(paramId);
-
-            // Insert all entries in the res
-
-            foreach (var p in res)
-            {
-                paramName.Value = p.Key;
-                paramId.Value = p.Value;
-                command.ExecuteNonQuery();
-            }
-
-            transaction.Commit();
+            writer.StartRow();
+            writer.Write(p.Value);
+            writer.Write(p.Key);
         }
+        writer.Complete();
     }
 
     public void InsertAllOcc(int docId, ISet<int> wordIds)
     {
-        using (var transaction = _connection.BeginTransaction())
+        if (wordIds.Count == 0) return;
+        using var writer = _connection.BeginBinaryImport("COPY occ (wordId, docId) FROM STDIN (FORMAT BINARY)");
+        foreach (var wordId in wordIds)
         {
-            var command = _connection.CreateCommand();
-            command.CommandText =
-                @"INSERT INTO occ(wordId, docId) VALUES(@wordId,@docId)";
-
-            var paramwordId = command.CreateParameter();
-            paramwordId.ParameterName = "wordId";
-
-            command.Parameters.Add(paramwordId);
-
-            var paramDocId = command.CreateParameter();
-            paramDocId.ParameterName = "docId";
-            paramDocId.Value = docId;
-
-            command.Parameters.Add(paramDocId);
-
-            foreach (var p in wordIds)
-            {
-                paramwordId.Value = p;
-
-                command.ExecuteNonQuery();
-            }
-
-            transaction.Commit();
+            writer.StartRow();
+            writer.Write(wordId);
+            writer.Write(docId);
         }
+        writer.Complete();
     }
 
     public void InsertWord(int id, string value)
     {
-        var insertCmd = new NpgsqlCommand("INSERT INTO word(id, name) VALUES(@id,@name)");
-        insertCmd.Connection = _connection;
-
-        var pName = new NpgsqlParameter("name", value);
-        insertCmd.Parameters.Add(pName);
-
-        var pCount = new NpgsqlParameter("id", id);
-        insertCmd.Parameters.Add(pCount);
-
-        insertCmd.ExecuteNonQuery();
+        using var cmd = new NpgsqlCommand("INSERT INTO word(id, name) VALUES(@id,@name)", _connection);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("name", value);
+        cmd.ExecuteNonQuery();
     }
 
     public void InsertDocument(BEDocument doc)
     {
-        var insertCmd =
-            new NpgsqlCommand(
-                "INSERT INTO document(id, url, idxTime, creationTime) VALUES(@id,@url, @idxTime, @creationTime)");
-        insertCmd.Connection = _connection;
-
-        var pId = new NpgsqlParameter("id", doc.Id);
-        insertCmd.Parameters.Add(pId);
-
-        var pUrl = new NpgsqlParameter("url", doc.Url);
-        insertCmd.Parameters.Add(pUrl);
-
-        var pIdxTime = new NpgsqlParameter("idxTime", doc.IdxTime);
-        insertCmd.Parameters.Add(pIdxTime);
-
-        var pCreationTime = new NpgsqlParameter("creationTime", doc.CreationTime);
-        insertCmd.Parameters.Add(pCreationTime);
-
-        insertCmd.ExecuteNonQuery();
-
+        using var cmd = new NpgsqlCommand(
+            "INSERT INTO document(id, url, idxTime, creationTime, content) VALUES(@id,@url,@idxTime,@creationTime,@content)",
+            _connection);
+        cmd.Parameters.AddWithValue("id", doc.Id);
+        cmd.Parameters.AddWithValue("url", doc.Url);
+        cmd.Parameters.AddWithValue("idxTime", doc.IdxTime);
+        cmd.Parameters.AddWithValue("creationTime", doc.CreationTime);
+        cmd.Parameters.AddWithValue("content", (object?)doc.Content ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
     }
 
     public Dictionary<string, int> GetAllWords()

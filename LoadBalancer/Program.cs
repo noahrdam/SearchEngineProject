@@ -1,6 +1,9 @@
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Routing", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Mvc", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
 
 builder.Services.AddControllers();
 

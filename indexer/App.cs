@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Shared;
 
 namespace Indexer;
     public class App
@@ -34,31 +33,13 @@ namespace Indexer;
 
         private IDatabase GetDatabase()
         {
-            Console.Write("Use SQLite (1), Postgres (2) or Reception split (3)?");
-            string input = Console.ReadLine();
-            if (input.Equals("1"))
-                return new DatabaseSqlite();
-            else if (input.Equals("2"))
-                return new DatabasePostgres();
-            else if (input.Equals("3"))
+            var cs2 = Shared.Paths.POSTGRES_DATABASE_2;
+            if (!string.IsNullOrEmpty(cs2))
             {
-                // Try to use Postgres as the second DB; if unavailable, fall back
-                // to a second sqlite file so reception still works when only sqlite is used.
-                IDatabase a = new DatabaseSqlite();
-                IDatabase b;
-                try
-                {
-                    b = new DatabasePostgres();
-                }
-                catch
-                {
-                    // fallback: create a second sqlite database file
-                    var altPath = Shared.Paths.SQLITE_DATABASE + ".part2.db";
-                    b = new DatabaseSqlite(altPath);
-                }
-                return new ReceptionDatabase(a, b);
+                Console.Write("Use single Postgres (1) or two-shard Postgres (2)? ");
+                if (Console.ReadLine()?.Trim() == "2")
+                    return new ReceptionDatabase(new DatabasePostgres(), new DatabasePostgres(cs2));
             }
-            Console.WriteLine("Wrong input - try again...");
-            return GetDatabase();
+            return new DatabasePostgres();
         }
     }

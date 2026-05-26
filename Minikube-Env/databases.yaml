@@ -1,0 +1,157 @@
+#########################################################
+# postgres1 — search shard A
+#########################################################
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres1-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres1
+spec:
+  selector:
+    matchLabels:
+      app: postgres1
+  template:
+    metadata:
+      labels:
+        app: postgres1
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_PASSWORD
+              value: "1234"
+            - name: POSTGRES_DB
+              value: searchlarge
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres1-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres1
+spec:
+  selector:
+    app: postgres1
+  ports:
+    - port: 5432
+
+---
+#########################################################
+# postgres2 — search shard B
+#########################################################
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres2-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres2
+spec:
+  selector:
+    matchLabels:
+      app: postgres2
+  template:
+    metadata:
+      labels:
+        app: postgres2
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_PASSWORD
+              value: "1234"
+            - name: POSTGRES_DB
+              value: searchlarge
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres2-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres2
+spec:
+  selector:
+    app: postgres2
+  ports:
+    - port: 5432
+
+---
+#########################################################
+# termnetdb — termnet synonym database
+#########################################################
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: termnetdb-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 512Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: termnetdb
+spec:
+  selector:
+    matchLabels:
+      app: termnetdb
+  template:
+    metadata:
+      labels:
+        app: termnetdb
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          env:
+            - name: POSTGRES_PASSWORD
+              value: "1234"
+            - name: POSTGRES_DB
+              value: termnetdb
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: termnetdb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: termnetdb
+spec:
+  selector:
+    app: termnetdb
+  ports:
+    - port: 5432

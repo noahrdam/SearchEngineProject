@@ -22,20 +22,13 @@ namespace Indexer;
 
         public Crawler(IDatabase db){ mdatabase = db; }
 
-        //Return a set of words in the file.
-        private ISet<string> ExtractWordsInFile(FileInfo f)
+        private (ISet<string> words, string content) ExtractWordsInFile(FileInfo f)
         {
             ISet<string> res = new HashSet<string>();
-            var content = File.ReadAllLines(f.FullName);
-            foreach (var line in content)
-            {
-                foreach (var aWord in line.Split(separators, StringSplitOptions.RemoveEmptyEntries))
-                {
-                    res.Add(aWord);
-                }
-            }
-
-            return res;
+            var content = File.ReadAllText(f.FullName);
+            foreach (var aWord in content.Split(separators, StringSplitOptions.RemoveEmptyEntries))
+                res.Add(aWord);
+            return (res, content);
         }
 
         private ISet<int> GetWordIdFromWords(ISet<string> src) {
@@ -67,9 +60,10 @@ namespace Indexer;
                         CreationTime = file.CreationTime
                     };
                     
+                    var (wordsInFile, fileContent) = ExtractWordsInFile(file);
+                    newDoc.Content = fileContent;
                     mdatabase.InsertDocument(newDoc);
                     Dictionary<string, int> newWords = new Dictionary<string, int>();
-                    ISet<string> wordsInFile = ExtractWordsInFile(file);
                     foreach (var aWord in wordsInFile) {
                         if (!words.ContainsKey(aWord)) {
                             words.Add(aWord, words.Count + 1);

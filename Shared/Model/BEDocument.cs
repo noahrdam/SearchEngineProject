@@ -10,5 +10,6 @@ namespace Shared.Model;
 
         public DateTime CreationTime { get; set; }
 
+        public string? Content { get; set; }
     }
 

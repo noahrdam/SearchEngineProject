@@ -3,8 +3,8 @@ using Shared.Model;
 
 namespace Indexer;
 
-// ReceptionDatabase forwards InsertAllWords/InsertWord to both databases
-// and splits documents/occurrences between dbA and dbB by document id parity.
+// Distributes documents across two database shards using docId mod 2.
+// Words are written to both shards so each can resolve word lookups independently.
 public class ReceptionDatabase : IDatabase
 {
     private readonly IDatabase dbA;
@@ -16,29 +16,11 @@ public class ReceptionDatabase : IDatabase
         dbB = b;
     }
 
-    public void InsertAllOcc(int docId, ISet<int> wordIds)
-    {
-        // route occurrences to the DB owning the document (by parity)
-        if ((docId % 2) == 0)
-            dbB.InsertAllOcc(docId, wordIds);
-        else
-            dbA.InsertAllOcc(docId, wordIds);
-    }
+    private IDatabase ShardFor(int docId) => docId % 2 == 0 ? dbA : dbB;
 
-    public void InsertAllWords(Dictionary<string, int> words)
-    {
-        // ensure both DBs have the same word-id mapping
-        dbA.InsertAllWords(words);
-        dbB.InsertAllWords(words);
-    }
+    public void InsertDocument(BEDocument doc) => ShardFor(doc.Id).InsertDocument(doc);
 
-    public void InsertDocument(BEDocument doc)
-    {
-        if ((doc.Id % 2) == 0)
-            dbB.InsertDocument(doc);
-        else
-            dbA.InsertDocument(doc);
-    }
+    public void InsertAllOcc(int docId, ISet<int> wordIds) => ShardFor(docId).InsertAllOcc(docId, wordIds);
 
     public void InsertWord(int id, string value)
     {
@@ -46,11 +28,13 @@ public class ReceptionDatabase : IDatabase
         dbB.InsertWord(id, value);
     }
 
-    public Dictionary<string, int> GetAllWords()
+    public void InsertAllWords(Dictionary<string, int> words)
     {
-        // both DBs should have identical word lists because InsertAllWords writes to both.
-        return dbA.GetAllWords();
+        dbA.InsertAllWords(words);
+        dbB.InsertAllWords(words);
     }
+
+    public Dictionary<string, int> GetAllWords() => dbA.GetAllWords();
 
     public int DocumentCounts => dbA.DocumentCounts + dbB.DocumentCounts;
 }
